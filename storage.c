@@ -27,8 +27,6 @@
 #include <unistd.h>  
 #include "ccgfs.h"
 #include "packet.h"
-typedef int uid_t;
-typedef int gid_t;
 
 #define b_path(dest, src) /* build path */ \
 	(snprintf(dest, sizeof(dest), "%s%s", root_dir, (src)) >= \
@@ -67,8 +65,8 @@ static int localfs_chmod(int fd, struct lo_packet *rq)
 static int localfs_chown(int fd, struct lo_packet *rq)
 {
 	const char *rq_path = pkt_shift_s(rq);
-	uid_t rq_uid        = pkt_shift_32(rq);
-	gid_t rq_gid        = pkt_shift_32(rq);             
+	int rq_uid        = pkt_shift_32(rq);
+	int rq_gid        = pkt_shift_32(rq);             
 
         (void)rq_path;
 	(void)rq_uid;
@@ -210,7 +208,12 @@ static int localfs_mkdir(int fd, struct lo_packet *rq)
 
 	(void)rq_mode;
 
+	#ifdef WIN32
 	if (mkdir(at(rq_path)) < 0)
+	#else
+	if (mkdir(at(rq_path), rq_mode) < 0)
+	#endif
+	
 		return -errno;
 
 	return LOCALFS_SUCCESS;
@@ -517,8 +520,8 @@ static const localfs_func_t localfs_func_array[] = {
 
 static int localfs_setfsid(struct lo_packet *rq)
 {
-	uid_t uid = pkt_shift_32(rq);
-	gid_t gid = pkt_shift_32(rq);
+	int uid = pkt_shift_32(rq);
+	int gid = pkt_shift_32(rq);
 	return -ENOSYS;
 }
 
@@ -528,13 +531,8 @@ static void handle_packet(int fd, struct lo_packet *rq)
 	struct lo_packet *rp;
 	localfs_func_t lf;
 	int ret;
-
-	if (localfs_setfsid(rq) < 0) {
-		rp = pkt_init(CCGFS_ERRNO_RESPONSE, PV_32);
-		pkt_push_32(rp, -EPERM);
-		pkt_send(fd, rp);
-		return;
-	}
+        
+	(void)localfs_setfsid(rq);
 
 	ret = -EIO;
 	hdr = rq->data;
