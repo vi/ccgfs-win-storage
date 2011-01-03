@@ -50,12 +50,31 @@ static __attribute__((pure)) const char *at(const char *in)
 }
 
 static int localfs_chmod(int fd, struct lo_packet *rq)
-{
+{                
+        const char *rq_path = pkt_shift_s(rq);
+	mode_t rq_mode      = pkt_shift_32(rq);    
+
+        (void)rq_path;
+	(void)rq_mode;
+
+	// Silently fail
+
 	return LOCALFS_SUCCESS;
 }
 
 static int localfs_chown(int fd, struct lo_packet *rq)
 {
+	const char *rq_path = pkt_shift_s(rq);
+	uid_t rq_uid        = pkt_shift_32(rq);
+	gid_t rq_gid        = pkt_shift_32(rq);             
+
+        (void)rq_path;
+	(void)rq_uid;
+	(void)rq_gid;
+
+	// Silently fail
+                            
+
         return LOCALFS_SUCCESS;
 }
 
@@ -116,7 +135,15 @@ static int localfs_fgetattr(int fd, struct lo_packet *rq)
 }
 
 static int localfs_fsync(int fd, struct lo_packet *rq)
-{
+{                  
+	int rq_fd              = pkt_shift_32(rq);
+	unsigned int data_only = pkt_shift_32(rq);     
+
+        (void)rq_fd;
+	(void)data_only;
+
+	// silently ignore
+
 	return LOCALFS_SUCCESS;
 }
 
@@ -145,16 +172,32 @@ static int localfs_getattr(int fd, struct lo_packet *rq)
 
 static int localfs_getxattr(int fd, struct lo_packet *rq)
 {
+	const char *rq_path = pkt_shift_s(rq);
+
+	(void)rq_path;
+	    
 	return -ENOSYS;
 }
 
 static int localfs_link(int fd, struct lo_packet *rq)
-{
+{               
+	const char *rq_oldpath = pkt_shift_s(rq);
+	const char *rq_newpath = pkt_shift_s(rq);  
+
+	(void)rq_oldpath;
+	(void)rq_newpath;
+
 	return -ENOSYS;
 }
 
 static int localfs_listxattr(int fd, struct lo_packet *rq)
 {
+	const char *rq_path = pkt_shift_s(rq);
+	size_t rq_size      = pkt_shift_64(rq);      
+
+	(void)rq_path;
+	(void)rq_size;
+
 	return -ENOSYS;
 }
 
@@ -173,6 +216,14 @@ static int localfs_mkdir(int fd, struct lo_packet *rq)
 
 static int localfs_mknod(int fd, struct lo_packet *rq)
 {
+	const char *rq_path = pkt_shift_s(rq);
+	mode_t rq_mode      = pkt_shift_32(rq);
+	dev_t rq_rdev       = pkt_shift_32(rq);         
+
+	(void)rq_path;
+	(void)rq_mode;
+	(void)rq_rdev;
+
 	return -ENOSYS;
 }
 
@@ -287,7 +338,13 @@ static int localfs_release(int fd, struct lo_packet *rq)
 }
 
 static int localfs_removexattr(int fd, struct lo_packet *rq)
-{
+{                  
+	const char *rq_path = pkt_shift_s(rq);
+	const char *rq_name = pkt_shift_s(rq);   
+
+	(void)rq_path;
+	(void)rq_name;
+
 	return -ENOSYS;
 }
 
@@ -314,11 +371,29 @@ static int localfs_rmdir(int fd, struct lo_packet *rq)
 
 static int localfs_setxattr(int fd, struct lo_packet *rq)
 {
+	const char *rq_path  = pkt_shift_s(rq);
+	const char *rq_name  = pkt_shift_s(rq);
+	const char *rq_value = pkt_shift_s(rq);
+	size_t rq_size       = pkt_shift_64(rq);
+	unsigned int flags   = pkt_shift_32(rq);    
+
+	(void)rq_path;
+	(void)rq_name;
+	(void)rq_value;
+	(void)rq_size;
+	(void)flags;
+
 	return -ENOSYS;
 }
 
 static int localfs_symlink(int fd, struct lo_packet *rq)
-{
+{                
+	const char *rq_oldpath = pkt_shift_s(rq);
+	const char *rq_newpath = pkt_shift_s(rq);  
+
+	(void) rq_oldpath;
+	(void) rq_newpath;
+
 	return -ENOSYS;
 }
 
