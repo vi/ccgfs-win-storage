@@ -10,6 +10,9 @@
  *	Foundation; either version 2 or 3 of the License.
  */
 #include <sys/types.h>
+#ifdef WIN32
+    #include <winsock2.h>
+#endif
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -187,7 +190,7 @@ static ssize_t reliable_write(int fd, void *buf, size_t count)
 	int ret;
 
 	while (count_left > 0) {
-		ret = write(fd, buf, count_left);
+		ret = send(fd, buf, count_left, 0);
 		if (ret > 0) {
 			count_left -= ret;
 			buf += ret;
@@ -210,7 +213,7 @@ static ssize_t reliable_read(int fd, void *buf, size_t count)
 	int ret;
 
 	while (count_left > 0) {
-		ret = read(fd, buf, count_left);
+		ret = recv(fd, buf, count_left, 0);
 		if (ret > 0) {
 			count_left -= ret;
 			buf += ret;

@@ -24,7 +24,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  
+#include <unistd.h> 
+#ifndef WIN32
+    #include <arpa/inet.h>
+    #include <sys/socket.h>
+#else
+    #include <winsock2.h>
+#endif
+
 #include "ccgfs.h"
 #include "packet.h"
 
@@ -561,16 +568,77 @@ static void send_fsinfo(int fd)
 
 int main(int argc, const char **argv)
 {
+	if(argc<3) {
+	    fprintf(stderr, "Usage: ccgfs-storage.exe IP_addr port\nIt will listen that socket and accept one client\n");
+	    exit(2);
+	}
+	#ifdef WIN32
+	    WSADATA wsaData;
+	    int iResult = WSAStartup( MAKEWORD(2,2), &wsaData );
+	    if ( iResult != NO_ERROR ) {
+		fprintf(stderr,"Error at WSAStartup()\n");
+		exit(1);
+	    }
+	#endif
+
+	const char* bind_ip = argv[1];
+	int bind_port = atoi(argv[2]);
+
+	int ss = socket(PF_INET, SOCK_STREAM, 0);
+	if (ss <= 0) {
+	    perror("socket");
+	    exit(1);
+	}
+
+	#ifndef WIN32
+	int opt = 1;
+	setsockopt(ss, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof opt);
+	#endif
+
+        struct sockaddr_in sa;
+	memset(&sa, 0, sizeof sa);
+	sa.sin_family = PF_INET;
+	sa.sin_port = htons(bind_port);
+	#ifdef WIN32
+	sa.sin_addr.S_un.S_addr = inet_addr(bind_ip);
+	#else
+	inet_aton(bind_ip, &sa.sin_addr);
+	#endif
+	if (-1 == bind(ss, (struct sockaddr *) &sa, sizeof sa)) {
+	    #ifdef WIN32
+	    fprintf(stderr, "WLE=%d\n", WSAGetLastError());
+	    #endif
+	    perror("bind");
+	    close(ss);
+	    exit(1);
+	}
+	if (-1 == listen(ss, 0)) {
+	    #ifdef WIN32
+	    fprintf(stderr, "WLE=%d\n", WSAGetLastError());
+	    #endif
+	    perror("listen");
+	    close(ss);
+	    exit(1);
+	}
+
+	/* Accepting the client socket */
+	struct sockaddr_in da; 
+	size_t len = sizeof sa;
+	int client = accept(ss, (struct sockaddr *) &sa, &len);
+	if (client <= 0) {
+	    perror("accept");
+	    return;
+	}
+
 	struct lo_packet *rq;
-
 	umask(0);
-	send_fsinfo(STDOUT_FILENO);
-
+	send_fsinfo(client);
+         
 	while (true) {
-		rq = pkt_recv(STDIN_FILENO);
+		rq = pkt_recv(client);
 		if (rq == NULL)
 			break;
-		handle_packet(STDOUT_FILENO, rq);
+		handle_packet(client, rq);
 		pkt_destroy(rq);
 	}
 
