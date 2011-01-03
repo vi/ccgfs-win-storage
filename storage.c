@@ -342,7 +342,12 @@ static int localfs_readdir(int fd, struct lo_packet *rq)
 	while ((dentry = readdir(ptr)) != NULL) {
 		rp = pkt_init(CCGFS_READDIR_RESPONSE,
 		              PV_64 + PV_32 + PV_STRING);
-		pkt_push_64(rp, dentry->d_ino);
+		long long int d_ino = dentry->d_ino;
+		if(d_ino==0) {
+		    /* hack */
+		    d_ino = 1;
+		}
+		pkt_push_64(rp, d_ino);
 		pkt_push_32(rp, 0);
 		pkt_push_s(rp, dentry->d_name);
 		pkt_send(fd, rp);
