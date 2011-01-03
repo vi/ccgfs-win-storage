@@ -1,0 +1,2 @@
+Extracted "storage" part of ccgfs-0.79 to build with MinGW.
+Should be ccgfs storage for Windows

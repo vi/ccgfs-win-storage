@@ -8,6 +8,8 @@
  *	redistribute it and/or modify it under the terms of the GNU
  *	General Public License as published by the Free Software
  *	Foundation; either version 2 or 3 of the License.
+ *
+ *	Hacked by Vitaly "_Vi" Shukela to be buildable with i586-mingw32msvc-gcc
  */
 #define _ATFILE_SOURCE 1
 #define _GNU_SOURCE 1
