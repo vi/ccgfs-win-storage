@@ -1,2 +1,5 @@
 Extracted "storage" part of ccgfs-0.79 to build with MinGW.
 Should be ccgfs storage for Windows
+
+wine ./ccgfs-storage.exe 0.0.0.0 1111
+socat tcp:127.0.0.1:1111 exec:'ccgfs-mount /home/vi/mnt/tmp -o umask=0000',nofork
