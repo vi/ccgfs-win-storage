@@ -256,6 +256,33 @@ static int localfs_opendir_access(int fd, struct lo_packet *rq)
 	return LOCALFS_SUCCESS;
 }
 
+ssize_t
+pread(int fd, void *buf, size_t count, off_t offset)
+{
+    ssize_t retval ;
+    off_t saved_pos = lseek (fd, 0, SEEK_CUR);
+
+    lseek (fd, offset, SEEK_SET);
+    retval = read (fd, buf, count);
+    lseek (fd, saved_pos, SEEK_SET);
+
+    return retval;    
+}
+
+ssize_t
+pwrite(int fd, const void *buf, size_t count, off_t offset)
+{
+    ssize_t retval ;
+    off_t saved_pos = lseek (fd, 0, SEEK_CUR);
+
+    lseek (fd, offset, SEEK_SET);
+    retval = write (fd, buf, count);
+    lseek (fd, saved_pos, SEEK_SET);
+
+    return retval;    
+}
+
+
 static int localfs_read(int fd, struct lo_packet *rq)
 {
 	int rq_fd       = pkt_shift_32(rq);
@@ -316,18 +343,9 @@ static int localfs_readdir(int fd, struct lo_packet *rq)
 static int localfs_readlink(int fd, struct lo_packet *rq)
 {
 	const char *rq_path = pkt_shift_s(rq);
-	char d_linkbuf[PATH_MAX];
-	struct lo_packet *rp;
+        (void) rq_path;
 
-	memset(d_linkbuf, 0, sizeof(d_linkbuf));
-	if (readlink(at(rq_path), d_linkbuf,
-	    sizeof(d_linkbuf) - 1) < 0)
-		return -errno;
-
-	rp = pkt_init(CCGFS_READLINK_RESPONSE, PV_STRING);
-	pkt_push_s(rp, d_linkbuf);
-	pkt_send(fd, rp);
-	return LOCALFS_STOP;
+	return -EINVAL;
 }
 
 static int localfs_release(int fd, struct lo_packet *rq)
@@ -407,8 +425,15 @@ static int localfs_truncate(int fd, struct lo_packet *rq)
 	const char *rq_path = pkt_shift_s(rq);
 	off_t rq_off        = pkt_shift_64(rq);
 
-	if (truncate(at(rq_path), rq_off) < 0)
+        int fd2 = open(at(rq_path), O_WRONLY);
+	if(fd2<0) {
 		return -errno;
+	}
+
+	if (ftruncate(fd2, rq_off) < 0)
+		return -errno;
+
+	close(fd2);
 
 	return LOCALFS_SUCCESS;
 }
@@ -426,16 +451,10 @@ static int localfs_unlink(int fd, struct lo_packet *rq)
 static int localfs_utimens(int fd, struct lo_packet *rq)
 {
 	const char *rq_path = pkt_shift_s(rq);
-	struct timeval val[2];
+	
+        (void)rq_path;
 
-	val[0].tv_sec  = pkt_shift_64(rq);
-	val[0].tv_usec = pkt_shift_64(rq) / 1000;
-	val[1].tv_sec  = pkt_shift_64(rq);
-	val[1].tv_usec = pkt_shift_64(rq) / 1000;
-	if (futimes(at(rq_path), val) < 0)
-		return -errno;
-
-	return LOCALFS_SUCCESS;
+	return -ENOSYS;
 }
 
 static int localfs_write(int fd, struct lo_packet *rq)
@@ -531,18 +550,12 @@ static void handle_packet(int fd, struct lo_packet *rq)
 static void send_fsinfo(int fd)
 {
 	struct lo_packet *rp;
-	char host[1024], buf[65536];
-
-	if (gethostname(host, sizeof(host)) < 0) {
-	    strcpy(host, "unknown_host");
-	}
-
-        char cwd[65536];
+        
+	char cwd[65536];
 	getcwd(cwd,65536);
 
-	snprintf(buf, sizeof(buf), "%s:%s", host, cwd);
 	rp = pkt_init(CCGFS_FSINFO, PV_STRING);
-	pkt_push_s(rp, buf);
+	pkt_push_s(rp, cwd);
 	pkt_send(fd, rp);
 }
 
