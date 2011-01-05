@@ -117,8 +117,12 @@ static struct lo_packet *getattr_copy_stor(const struct stat *sb)
 
 	unsigned long long int fake_st_blksize=1024;
 	unsigned long long int fake_st_blocks=sb->st_size/1024+1;
+	long long int ino = sb->st_ino;
+	if(ino==0) {
+	    ino = random() + 1;
+	}
 
-	pkt_push_64(rp, sb->st_ino);
+	pkt_push_64(rp, ino);
 	pkt_push_32(rp, sb->st_mode);
 	pkt_push_32(rp, sb->st_nlink);
 	pkt_push_32(rp, sb->st_uid);
@@ -348,8 +352,7 @@ static int localfs_readdir(int fd, struct lo_packet *rq)
 		              PV_64 + PV_32 + PV_STRING);
 		long long int d_ino = dentry->d_ino;
 		if(d_ino==0) {
-		    /* hack */
-		    d_ino = 1;
+		    d_ino = random() + 1;
 		}
 		pkt_push_64(rp, d_ino);
 		pkt_push_32(rp, 0);
