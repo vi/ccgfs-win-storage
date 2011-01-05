@@ -475,7 +475,9 @@ static int localfs_utimens(int fd, struct lo_packet *rq)
 	
         (void)rq_path;
 
-	return -ENOSYS;
+        /* Fail silently */
+
+	return 0;
 }
 
 static int localfs_write(int fd, struct lo_packet *rq)
