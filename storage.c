@@ -39,10 +39,46 @@
 #include "ccgfs.h"
 #include "packet.h"
 
+#include "crc64.c"
+
 #define b_path(dest, src) /* build path */ \
 	(snprintf(dest, sizeof(dest), "%s%s", root_dir, (src)) >= \
 	          sizeof(dest))
 #define perror(s) perror("ccgfs-storage: " s)
+
+
+static long long int _fake_ino(unsigned long long int x) {
+    x&=0x7FFFFFFFFFFFFFFFULL;
+
+    if(!x) {
+	++x;
+    }
+
+    fprintf(stderr, "    ino=%016llx\n", x);
+    fflush(stderr);
+
+    return x;
+}
+static long long int fake_ino(const char* path) {
+    fprintf(stderr, "path=%s\n", path);
+    unsigned long long int x;
+    Init_crc(&x);
+    Calc_crc(&x, path, strlen(path));
+    Fin_crc(&x);
+
+    return _fake_ino(x);
+}
+static long long int fake_ino2(const char* path, const char* entry) {
+    fprintf(stderr, "path=%s entry=%s\n", path, entry);
+    unsigned long long int x;
+    Init_crc(&x);
+    Calc_crc(&x, path, strlen(path));
+    Calc_crc(&x, "/", 1);
+    Calc_crc(&x, entry, strlen(entry));
+    Fin_crc(&x);
+
+    return _fake_ino(x);
+}
 
 enum {
 	LOCALFS_SUCCESS = 0,
@@ -120,7 +156,7 @@ static struct lo_packet *getattr_copy_stor(const struct stat *sb)
 
 	pkt_push_64(rp, sb->st_ino);
 	pkt_push_32(rp, sb->st_mode);
-	pkt_push_32(rp, sb->st_nlink);
+	pkt_push_32(rp, 1);
 	pkt_push_32(rp, sb->st_uid);
 	pkt_push_32(rp, sb->st_gid);
 	pkt_push_32(rp, sb->st_rdev);
@@ -140,7 +176,7 @@ static int localfs_fgetattr(int fd, struct lo_packet *rq)
 
 	if (fstat(rq_fd, &sb) < 0)
 		return -errno;
-
+        /* Should set fake ino here somehow */
 	pkt_send(fd, getattr_copy_stor(&sb));
 	return LOCALFS_STOP;
 }
@@ -177,6 +213,7 @@ static int localfs_getattr(int fd, struct lo_packet *rq)
 	if (stat(at(rq_path), &sb) < 0)
 		return -errno;
 
+	sb.st_ino = fake_ino(at(rq_path));
 	pkt_send(fd, getattr_copy_stor(&sb));
 	return LOCALFS_STOP;
 }
@@ -346,11 +383,8 @@ static int localfs_readdir(int fd, struct lo_packet *rq)
 	while ((dentry = readdir(ptr)) != NULL) {
 		rp = pkt_init(CCGFS_READDIR_RESPONSE,
 		              PV_64 + PV_32 + PV_STRING);
-		long long int d_ino = dentry->d_ino;
-		if(d_ino==0) {
-		    /* hack */
-		    d_ino = 1;
-		}
+
+		long long int d_ino = fake_ino2(at(rq_path), dentry->d_name);
 		pkt_push_64(rp, d_ino);
 		pkt_push_32(rp, 0);
 		pkt_push_s(rp, dentry->d_name);
