@@ -4,4 +4,9 @@ Should be ccgfs storage for Windows
 wine ./ccgfs-storage.exe 0.0.0.0 1111
 socat tcp:127.0.0.1:1111 exec:'ccgfs-mount /home/vi/mnt/tmp -o umask=0000',nofork
 
+"ls /home/vi/mnt/tmp/" -> content of current directory of ccgfs-storage.exe
+"ls /home/vi/mnt/tmp/c:\\\\" -> content of C:\
+
+Warning: inode numbers are just random, "mv file existing_file" will fail, all Windows filesystem limitations does apply.
+
 Author page: http://vi-server.org/
