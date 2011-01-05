@@ -32,6 +32,10 @@
     #include <winsock2.h>
 #endif
 
+#ifndef O_BINARY
+    #define O_BINARY 0
+#endif
+
 #include "ccgfs.h"
 #include "packet.h"
 
@@ -93,7 +97,7 @@ static int localfs_create(int fd, struct lo_packet *rq)
 	struct lo_packet *rp;
 	int ret;
 
-	ret = open(at(rq_path), arch_openflags(rq_flags), rq_mode);
+	ret = open(at(rq_path), arch_openflags(rq_flags)|O_BINARY, rq_mode);
 	if (ret < 0)
 		return -errno;
 
@@ -246,7 +250,7 @@ static int localfs_open(int fd, struct lo_packet *rq)
 	struct lo_packet *rp;
 	int ret;
 
-	ret = open(at(rq_path), arch_openflags(rq_flags));
+	ret = open(at(rq_path), arch_openflags(rq_flags)|O_BINARY);
 	if (ret < 0)
 		return -errno;
 
@@ -442,7 +446,7 @@ static int localfs_truncate(int fd, struct lo_packet *rq)
 	const char *rq_path = pkt_shift_s(rq);
 	off_t rq_off        = pkt_shift_64(rq);
 
-        int fd2 = open(at(rq_path), O_WRONLY);
+        int fd2 = open(at(rq_path), O_WRONLY|O_BINARY);
 	if(fd2<0) {
 		return -errno;
 	}
