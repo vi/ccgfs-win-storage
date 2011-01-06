@@ -9,4 +9,6 @@ socat tcp:127.0.0.1:1111 exec:'ccgfs-mount /home/vi/mnt/tmp -o umask=0000',nofor
 
 Warning: inode numbers are just random, "mv file existing_file" will fail, all Windows filesystem limitations does apply.
 
+Bonus: A script to trace ccgfs traffic dump (created by socat)
+
 Author page: http://vi-server.org/
