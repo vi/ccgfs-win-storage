@@ -2,6 +2,8 @@
 
 # ccgfs protocol decryptor (for debugging)
 # Implemented by Vitaly "_Vi" Shukela (http://vi-server.org) in 2011, MIT License
+#
+# Intended to help developing of new ccgfs storages and mounters.
 
 # Relies on fixed textual debug output from socat
 # 	Can be easily extended to show additional info about calls
@@ -10,54 +12,42 @@
 (socat version 1.7.1.3)
 /usr/bin/socat -x -v tcp:127.0.0.1:1144 exec:'ccgfs-mount -o umask=0000 m' 2>&1 | ./ccgfs-dump-parser
 
->     fsinfo(38) /home/vi/code/ccgfs-win-storage
-< GETATTR(6) 1000 1000 /
->     getattr(30) ino=3712124LL mode=16877 nlink=4 uid=1000 gid=1000 rdev=0 size=648LL blksize=1024LL blocks=1LL atime=1294281849LL mtime=1294281839LL ctime=1294281839LL
-< OPENDIR(13) 1000 1000 /
->     errno(29) 0
-< READDIR(15) 1000 1000 /
->     readdir(35) 3712124LL 0 .
->     readdir(35) 56772LL 0 ..
->     readdir(35) 4146855LL 0 Makefile
-...
->     readdir(35) 4146255LL 0 xl_errno.c
->     readdir(35) 4146614LL 0 ccgfs-storage.exe
->     errno(29) 0
-< GETATTR(6) 1000 1000 /
->     getattr(30) ino=3712124LL mode=16877 nlink=4 uid=1000 gid=1000 rdev=0 size=648LL blksize=1024LL blocks=1LL atime=1294281849LL mtime=1294281839LL ctime=1294281839LL
-< OPEN(12) 1000 1000 /ccgfs-storage 1
+>     fsinfo(38) "/home/vi/code/ccgfs-win-storage"
+< GETATTR(6) 1000 1000 "/"
+>     getattr(30) ino=3712124LL mode=16877 nlink=4 uid=1000 gid=1000 rdev=0 size=616LL blksize=1024LL blocks=1LL atime=1294278601LL mtime=1294281468LL ctime=1294281468LL
+< OPENDIR(13) 1000 1000 "/"
+>     errno(29) OK(0)
+< READDIR(15) 1000 1000 "/"
+>     readdir(35) 3712124LL 0 "."
+>     readdir(35) 56772LL 0 ".."
+>     readdir(35) 4146269LL 0 ".git"
+..........................
+>     readdir(35) 4146249LL 0 "xl.c"
+>     readdir(35) 4146614LL 0 "ccgfs-storage.exe"
+>     errno(29) OK(0)
+< GETATTR(6) 1000 1000 "/.qwerty.swp"
+>     errno(29) ENOENT(-2)
+< CREATE(2) 1000 1000 "/.qwerty.swp" 15 33152
+>     CREATE(28) 5
+< OPEN(12) 1000 1000 "/qwerty" 1
 >     open(33) 5
-< READ(14) 1000 1000 5 16384LL 0LL
->     read(34) 16384LL BLOB(~ELF~P~4~t~4~(~'~$~4~4~4~/~/~0~0~(~(~(~D~D~Q~td~/~~~$~9a~s~7~y~7~>~7~k~7~h~C~S~]~yD~|~z~#~{~#~>~H~X~)
-...
+< READ(14) 1000 1000 5 4096LL 0LL
+>     read(34) 15LL BLOB(Hello, worlddd.)
+< FGETATTR(3) 1000 1000 5
+>     getattr(30) ino=3920767LL mode=33152 nlink=1 uid=1000 gid=1000 rdev=0 size=0LL blksize=1024LL blocks=1LL atime=1294281501LL mtime=1294281501LL ctime=1294281501LL
+< WRITE(27) 1000 1000 5 4096LL 0LL BLOB(b0VIM.7.2.wU.vi.vi-notebook.~vi/code/ccgfs-win-storage/m/qwerty.3210#"!.U.)
+>     errno(29) 4096
+< UNLINK(25) 1000 1000 "/qwerty"
+>     errno(29) OK(0)
 =cut
 
 use strict;
 
-pipe TO, TO_WRITE;
-pipe FROM, FROM_WRITE;
+our @buffer = ("", "");
+our @buffer_req=(0, 0);
+our @dirnames = ("<", ">");
 
-select TO_WRITE; $|=1;
-select FROM_WRITE; $|=1;
-select STDOUT; $|=1;
-
-sub stdin_to_pipes() {
-    my $direction;
-    while(<>) {
-	chomp;
-	if(m!^([<>]) \d\d\d\d/\d\d/\d\d \d\d:\d\d:\d\d.\d+\s+length=\d+ from=\d+ to=\d+!) {
-	    if($1 eq "<") {
-		$direction = *FROM_WRITE;
-	    } else {
-		$direction = *TO_WRITE;
-	    }
-	}
-	elsif(m!^ ((?:[a-z0-9]{2} ){1,16}) .!) {
-	    $_ = $1;
-	    print $direction pack "C*", (map hex, split);
-	}
-    }
-}
+$|=1;
 
 our @opnames = qw/CHMOD CHOWN CREATE FGETATTR FSYNC FTRUNCATE GETATTR GETXATTR LINK LISTXATTR MKDIR MKNOD OPEN OPENDIR READ READDIR READLINK RELEASE REMOVEXATTR RENAME RMDIR SETXATTR STATFS SYMLINK TRUNCATE UNLINK UTIMENS WRITE CREATE 
 errno getattr getxattr listxattr open read readdir readlink statfs fsinfo/;
@@ -66,79 +56,102 @@ our @errs=qw/OK EPERM ENOENT ESRCH EINTR EIO ENXIO E2BIG ENOEXEC EBADF ECHILD EA
   
 our @getattr_fields = qw/ino mode nlink uid gid rdev size blksize blocks atime mtime ctime/;
 
-sub pipe_to_stdin($$) {
-    my $f = shift;
-    my $comment = shift;
-    my $buf="", my $buf2="";
-    until(eof($f)) {
-	read $f, $buf, 8;
-	my ($opcode, $length) = unpack("LL", $buf);
-	read $f, $buf2, $length-8;
-	my $opname = $opnames[$opcode];
-	my $data = "";
+sub process_packet($$$) {
+    my $opcode = shift;
+    my $buf2 = shift;
+    my $direction = shift;
 
-	my $error_name_already_read=0;
-	my $values_read=0;
-	
-        while(length($buf2)) {
-	    $data .= " ";
-	    if($opname eq "getattr") {
-		$data .= $getattr_fields[$values_read] . "=";
-	    }
-	    my $type = unpack("L", $buf2); $buf2 = substr $buf2, 4;
-	    if($type == 4) {
-		my $x = unpack("l", $buf2); $buf2 = substr $buf2, 4;
-		if($opname eq "errno" and not $error_name_already_read=1) {
+    my $opname = $opnames[$opcode];
+    my $data = "";
+
+    my $error_name_already_read=0;
+    my $values_read=0;
+    
+    while(length($buf2)) {
+	$data .= " ";
+	if($opname eq "getattr") {
+	    $data .= $getattr_fields[$values_read] . "=";
+	}
+	my $type = unpack("L", $buf2); $buf2 = substr $buf2, 4;
+	if($type == 4) {
+	    my $x = unpack("l", $buf2); $buf2 = substr $buf2, 4;
+	    if($opname eq "errno" and not $error_name_already_read) {
+		if ($x<=0) {
 		    $x = $errs[-$x]."($x)";
-		    $error_name_already_read=1;
 		}
-		$data .= "$x";
-	    }elsif($type == 8) {
-		my ($l, $h) = unpack("Ll", $buf2); $buf2 = substr $buf2, 8;
-		my $x = $h*0x10000*1.0*0x10000+$l;
-		$data .= "$x"."LL";
-	    }elsif($type & 0x80000000){
-		my $l = $type & 0x7FFFFFFF;
-		my $str = substr $buf2, 0, $l;
-		$buf2 = substr $buf2, $l;
-		
-		if($opname eq "WRITE" or $opname eq "read") {
-		    # may be binary blob
-		    $str =~ s/[^0-9A-Za-z\!\@\#\$\%\^\&\*\(\)\-\_\=\+\[\]\{\}\\\|\;\:\'\"\,\<\.\>\/\?\`]+/~/gm;
-		    if(length $str > 100) {
-			$str = substr($str,0,49)."~~".substr($str,-49);
-		    }
-		    $str = "BLOB($str)";
-		} else {
-		    $str =~ s/\n/\\n/gm;
-		    $str =~ s/\r/\\r/gm;
-		    $str =~ s/\t/\\t/gm;
-		    $str =~ s/([^0-9\x80-\xFFA-Za-z\!\@\#\$\%\^\&\*\(\)\-\_\=\+\[\]\{\}\\\|\;\:\'\"\,\<\.\>\/\?\`\~])/"\\x".(sprintf "%02x", ord $1)/gem;
-		    if($str =~ /\\x00$/m) {
-			$str =~ s/\\x00$//m;
-		    } else {
-			$str .= "\\!0";
-		    }
-		}
-		$data .= $str;
-	    } else {
-		$data .= "UNKNOWN_TYPE_$type(".unpack("H*", $buf2).")";
-		$buf2="";
+		$error_name_already_read=1;
 	    }
-	    ++$values_read;
-	}
-
-
-	if($comment eq "<") {
-	    print STDOUT "$comment $opname($opcode)$data\n";
+	    $data .= "$x";
+	}elsif($type == 8) {
+	    my ($l, $h) = unpack("Ll", $buf2); $buf2 = substr $buf2, 8;
+	    my $x = $h*0x10000*1.0*0x10000+$l;
+	    $data .= "$x"."LL";
+	}elsif($type & 0x80000000){
+	    my $l = $type & 0x7FFFFFFF;
+	    my $str = substr $buf2, 0, $l;
+	    $buf2 = substr $buf2, $l;
+	    
+	    if($opname eq "WRITE" or $opname eq "read") {
+		# may be binary blob
+		$str =~ s/[^0-9A-Za-z\!\@\#\$\%\^\&\*\(\)\-\_\=\+\[\]\{\}\\\|\;\:\'\"\,\<\>\/\?\`\~]+/./gm;
+		if(length $str > 100) {
+		    $str = substr($str,0,49)."..".substr($str,-49);
+		}
+		$str = "BLOB($str)";
+	    } else {
+		$str =~ s/\n/\\n/gm;
+		$str =~ s/\r/\\r/gm;
+		$str =~ s/\t/\\t/gm;
+		$str =~ s/\"/\\"/gm;
+		$str =~ s/([^0-9\x80-\xFFA-Za-z\!\@\#\$\%\^\&\*\(\)\-\_\=\+\[\]\{\}\\\|\;\:\'\"\,\<\.\>\/\?\`\~])/"\\x".(sprintf "%02x", ord $1)/gem;
+		if($str =~ /\\x00$/m) {
+		    $str =~ s/\\x00$//m;
+		} else {
+		    $str .= "\\!0";
+		}
+		$str = "\"$str\"";
+	    }
+	    $data .= $str;
 	} else {
-	    print STDOUT "$comment     $opname($opcode)$data\n";
+	    $data .= "UNKNOWN_TYPE_$type(".unpack("H*", $buf2).")";
+	    $buf2="";
 	}
+	++$values_read;
+    }
+
+
+    if($direction eq "<") {
+	print STDOUT "$direction $opname($opcode)$data\n";
+    } else {
+	print STDOUT "$direction     $opname($opcode)$data\n";
     }
 }
 
-pipe_to_stdin(*TO, ">") unless fork;
-pipe_to_stdin(*FROM, "<") unless fork;
-stdin_to_pipes();
-close TO_WRITE;
-close FROM_WRITE;
+my $direction;
+while(<>) {
+    chomp;
+    if(m!^([<>]) \d\d\d\d/\d\d/\d\d \d\d:\d\d:\d\d.\d+\s+length=\d+ from=\d+ to=\d+!) {
+	if($1 eq "<") {
+	    $direction = 0;
+	} else {
+	    $direction = 1;
+	}
+    }
+    elsif(m!^ ((?:[a-z0-9]{2} ){1,16}) .!) {
+	$_ = $1;
+	my $data = pack "C*", (map hex, split);
+	$buffer[$direction] .= $data;
+	if(not $buffer_req[$direction] and length($buffer[$direction]) >= 8) {
+	    my ($opcode, $length) = unpack("LL", $buffer[$direction]); 
+	    $buffer_req[$direction] = $length;
+	}
+	if(length($buffer[$direction]) >= $buffer_req[$direction]) {
+	    my ($opcode, $length) = unpack("LL", $buffer[$direction]); 
+	    my $data = substr $buffer[$direction], 8, $length-8;	    
+            $buffer[$direction] = substr $buffer[$direction], $length;
+            $buffer_req[$direction]=0;
+
+	    process_packet($opcode, $data, $dirnames[$direction]);
+	}
+    }
+}
