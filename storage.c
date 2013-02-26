@@ -643,6 +643,9 @@ int main(int argc, const char **argv)
 	    perror("accept");
 	    return;
 	}
+    
+    fprintf(stderr, "W=%d ss=%d client=%d\n", WSAGetLastError(), ss, client);
+    
 
 	struct lo_packet *rq;
 	umask(0);

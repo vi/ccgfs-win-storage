@@ -189,6 +189,7 @@ static ssize_t reliable_write(int fd, void *buf, size_t count)
 	size_t count_left = count;
 	int ret;
 
+    //fprintf(stderr, "reliable_write fd=%d buf=%p count=%d\n", fd, buf, count);
 	while (count_left > 0) {
 		ret = send(fd, buf, count_left, 0);
 		if (ret > 0) {
@@ -199,6 +200,10 @@ static ssize_t reliable_write(int fd, void *buf, size_t count)
 		} else if (ret < 0 && (errno == EINTR || errno == EAGAIN)) {
 			/* immediate retry */
 		} else {
+            fprintf(stderr, "fd=%d ret=%d errno=%d\n", fd, ret, errno);
+            #ifdef WIN32
+            fprintf(stderr, "WLE=%d\n", WSAGetLastError());
+            #endif
 			perror("reliable_write unable to recover");
 			return ret;
 		}
@@ -212,6 +217,7 @@ static ssize_t reliable_read(int fd, void *buf, size_t count)
 	size_t count_left = count;
 	int ret;
 
+    //fprintf(stderr, "reliable_read fd=%d buf=%p count=%d\n", fd, buf, count);
 	while (count_left > 0) {
 		ret = recv(fd, buf, count_left, 0);
 		if (ret > 0) {
@@ -222,6 +228,10 @@ static ssize_t reliable_read(int fd, void *buf, size_t count)
 		} else if (ret < 0 && (errno == EINTR || errno == EAGAIN)) {
 			/* immediate retry */
 		} else {
+            fprintf(stderr, "fd=%d ret=%d errno=%d\n", fd, ret, errno);
+            #ifdef WIN32
+            fprintf(stderr, "WLE=%d\n", WSAGetLastError());
+            #endif
 			perror("reliable_read unable to recover");
 			return ret;
 		}
