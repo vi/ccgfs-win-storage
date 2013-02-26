@@ -598,7 +598,7 @@ int main(int argc, const char **argv)
 	const char* bind_ip = argv[1];
 	int bind_port = atoi(argv[2]);
 
-	int ss = socket(PF_INET, SOCK_STREAM, 0);
+	int ss = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (ss <= 0) {
 	    perror("socket");
 	    exit(1);
@@ -646,6 +646,16 @@ int main(int argc, const char **argv)
     
     fprintf(stderr, "W=%d ss=%d client=%d\n", WSAGetLastError(), ss, client);
     
+    int q;
+    for(q=-16; q<=16; ++q) {
+        int ssize = 0, sor = sizeof (int);
+
+        if(getsockopt (client+q, SOL_SOCKET, SO_RCVBUF, (LPSTR) & ssize, & sor)!= SOCKET_ERROR) {
+            fprintf(stderr, "Auto-probed socket offset %d\n", q);
+            break;
+        }
+    }
+    client+=q;
 
 	struct lo_packet *rq;
 	umask(0);
