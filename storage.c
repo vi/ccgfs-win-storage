@@ -646,16 +646,19 @@ int main(int argc, const char **argv)
     
     fprintf(stderr, "W=%d ss=%d client=%d\n", WSAGetLastError(), ss, client);
     
-    int q;
-    for(q=-16; q<=16; ++q) {
-        int ssize = 0, sor = sizeof (int);
+    int ssize = 0, sor = sizeof (int);
+    if(getsockopt (client, SOL_SOCKET, SO_RCVBUF, (LPSTR) & ssize, & sor) == SOCKET_ERROR) {
+        fprintf(stderr, "Trying to guess socket offset\n");
+        int q;
+        for(q=-16; q<=16; ++q) {
 
-        if(getsockopt (client+q, SOL_SOCKET, SO_RCVBUF, (LPSTR) & ssize, & sor)!= SOCKET_ERROR) {
-            fprintf(stderr, "Auto-probed socket offset %d\n", q);
-            break;
+            if(getsockopt (client+q, SOL_SOCKET, SO_RCVBUF, (LPSTR) & ssize, & sor)!= SOCKET_ERROR) {
+                fprintf(stderr, "Auto-probed socket offset %d\n", q);
+                break;
+            }
         }
+        client+=q;
     }
-    client+=q;
 
 	struct lo_packet *rq;
 	umask(0);
